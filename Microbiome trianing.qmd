@@ -55,7 +55,8 @@ loaded <- sapply(c(bioc_pkg, cran_pkg), require, character.only = TRUE)
 as.data.frame(loaded)
 ```
 
-## Data Importation
+```         
+```
 
 Data Access;
 
@@ -71,7 +72,7 @@ se <- readRDS("data/se.rds")
 tse <- readRDS("data/tse.rds")
 ```
 
-Microbiome Data Exploration,
+## Microbiome Data Exploration
 
 Basic operations for data exploration to confirm that the data has all the necessary components:
 
@@ -147,4 +148,136 @@ tse_phylum <- agglomerateByRank(tse, rank = "Phylum")
 dim(tse_phylum)
 ```
 
-There are 5 taxa and 27 samples. undefinedundefined
+There are 5 taxa and 27 samples. Meaning there are 5 different Phylum lvl taxonomic groups.
+
+```{r}
+#rowData affter aglomeration shows all Firmicutes are combined together, and all lower rank information is lost. 
+knitr::kable(head(rowData(tse_phylum))) %>% 
+  kableExtra::kable_styling("striped", 
+                            latex_options="scale_down") %>% 
+  kableExtra::scroll_box(width = "100%")
+#The assay tells us that all abundances of taxa that belong to Firmicutes are summed up. 
+```
+
+all the aggregated values in the above example are NA’s (missing data). This is because the agglomeration is missing abundances for certain taxa, and in that case the sum is not defined by default (`na.rm = FALSE`). We can ignore the missing values in summing up the data by setting `na.rm = TRUE`; then the taxa that do not have information in specified level will be removed. Those taxa that do not have information in specified level are agglomerated at lowest possible level that is left after agglomeration.
+
+```{r}
+temp <- rowData(agglomerateByRank(tse, rank = "Genus"))
+
+# Prints those taxa that do not have information at the Genus level
+knitr::kable(head(temp[temp$Genus == "",])) %>% 
+  kableExtra::kable_styling("striped", 
+                            latex_options="scale_down") %>% 
+  kableExtra::scroll_box(width = "100%")
+```
+
+```{r}
+temp2 <- rowData(agglomerateByRank(tse, rank = "Genus", na.rm = TRUE))
+
+print(paste0("Agglomeration with na.rm = FALSE: ", dim(temp)[1], " taxa."))
+## [1] "Agglomeration with na.rm = FALSE: 54 taxa."
+
+print(paste0("Agglomeration with na.rm = TRUE: ", dim(temp2)[1], " taxa."))
+## [1] "Agglomeration with na.rm = TRUE: 49 taxa."
+```
+
+## Data Visualization
+
+```{r}
+# Here we specify "relabundance" to be abundance table that we use for plotting.
+# Note that we can use agglomerated or non-agglomerated tse as an input, because
+# the function agglomeration is built-in option. 
+
+# Legend does not fit into picture, so its height is reduced.
+plot_abundance <- plotAbundance(tse, abund_values="relabundance", rank = "Phylum") +
+  theme(legend.key.height = unit(0.5, "cm")) +
+  scale_y_continuous(label = scales::percent)
+plot_abundance 
+```
+
+**Density plot** shows the overall abundance distribution for a given taxonomic group. Let us check the relative abundance of Firmicutes across the sample collection. The density plot is a smoothened version of a standard histogram.
+
+The plot shows peak abundances around 30 %.
+
+```{r}
+# Subset data by taking only Firmicutes
+tse_firmicutes <- tse_phylum["Firmicutes"]
+
+# Gets the abundance table
+abundance_firmicutes <- assay(tse_firmicutes, "relabundance")
+
+# Creates a data frame object, where first column includes abundances
+firmicutes_abund_df <- as.data.frame(t(abundance_firmicutes))
+# Rename the first and only column
+colnames(firmicutes_abund_df) <- "abund"
+
+# Creates a plot. Parameters inside feom_density are optional. With 
+# geom_density(bw=1000), it is possible to adjust bandwidth.
+firmicutes_abund_plot <- ggplot(firmicutes_abund_df, aes(x = abund)) + 
+  geom_density(color="darkred", fill="lightblue") + 
+  labs(x = "Relative abundance", title = "Firmicutes") +
+  theme_classic() + # Changes the background
+  scale_x_continuous(label = scales::percent)
+
+firmicutes_abund_plot
+```
+
+## Alpha Diversity
+
+This section demonstrates the analysis of alpha diversity. This quantity measures microbial diversity within each sample. Higher numbers of unique taxa, and more even abundance distributions within a sample yield larger values for alpha diversity.
+
+Alpha diversity is a key quantity in a microbiome research. The [*mia* package](https://microbiome.github.io/mia/) provides access to a wide variety of alpha diversity indices. For more background information and examples with various alpha diversity indices, see the [online book](https://microbiome.github.io/OMA/microbiome-diversity.html#alpha-diversity).
+
+Let us show how to calculate to different diversity indices, Shannon and Faith. Shannon index reflects how many different taxa there are and how evenly they are distributed within a sample. Faith index additionally takes into account the phylogenetic relations into account.
+
+```{r}
+# Indices to be calculated. 
+# Every index is calculated by default if we don't specify indices.
+indices <- c("shannon", "faith")
+
+# Indices are stored in colData (i.e., sample metadata). We can specify the name
+# of column, or we can use the default name which is the name of index 
+# (i.e., "shannon" and "faith"). 
+names <- c("Shannon_diversity", "Faith_diversity")
+
+# Calculates indices
+tse <- estimateDiversity(tse, index = indices, name = names)
+
+# Shows the calculated indices
+knitr::kable(head(colData(tse)[names])) %>% 
+  kableExtra::kable_styling("striped", 
+                            latex_options="scale_down") %>% 
+  kableExtra::scroll_box(width = "100%")
+```
+
+Next we can visualize Shannon index with histogram.
+
+```{r}
+# ggplot needs data.frame format as input.
+# Here, colData is DataFrame, therefore it needs to be converted to data.frame
+shannon_hist <- ggplot(as.data.frame(colData(tse)), 
+                       aes(x = Shannon_diversity)) + 
+  geom_histogram(bins = 20, fill = "gray", color = "black") +
+  labs(x = "Shannon index", y = "Sample frequency")
+
+shannon_hist
+```
+
+Next, let us compare the indices based on a scatter-plot.
+
+```         
+```
+
+```{r}
+cross_plot <- ggplot2::ggplot(as.data.frame(colData(tse)), 
+                              aes(x = Shannon_diversity, y = Faith_diversity)) + 
+  geom_point() + # Adds points
+  geom_smooth(method=lm) + # Adds regression line
+  labs(x = "Shannon index", y = "Faith diversity") 
+
+cross_plot
+```
+
+Visualization:
+
+Next let us compare indices between different patient status and cohorts. Boxplot is suitable for that purpose.
