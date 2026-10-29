@@ -281,3 +281,38 @@ cross_plot
 Visualization:
 
 Next let us compare indices between different patient status and cohorts. Boxplot is suitable for that purpose.
+
+Compare indices between different patient status and cohorts via boxplot.
+
+```{r}
+#Creates a Shannon boxplot:
+shannon_box <- ggplot(as.data.frame(colData(tse)),
+aes(x = patient_status,
+    y = Shannon_diversity,
+    fill= cohort)) +
+    geom_boxplot() +
+    theme(title = element_text(size = 12)) #makes the titles smaller
+
+#Create Faith boxplot
+faith_box <- ggplot(as.data.frame(colData(tse)), aes(x=patient_status, 
+                                                     y= Faith_diversity,
+                                                     fill = cohort)) +
+  geom_boxplot() +
+  theme(title = element_text(size = 12)) #makes titles smaller
+
+#puts them into same picture
+gridExtra::grid.arrange(shannon_box,faith_box, nrow = 2)
+```
+
+Statistical Testing and Comparisons:
+
+To further investigate if patient status could explain the variation of Shannon index, let's do a Wilcoxon test. This is a non-parametric test that doesn't make specific assumptions about the distribution, unlike popular parametric tests, such as the t test, which assumed normally distributed observations.
+
+The Wilcoxon test can be used to estimate whether the differences between two groups is statistically significant. Here the ADHD and control groups are not significantly different between groups (p-value over 0.05)
+
+```{r}
+#Wilcoxon test, where the Shannon index is the variable that we are comparing
+#Patient status- ADHD or control - is the factor that we use for grouping
+
+Wilcoxon_shannon <-wilcox.test(Shannon_diversity ~ patient_status, data 
+```
